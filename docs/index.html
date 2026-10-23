@@ -2,41 +2,83 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Ultimate Catalog · Web Game Ports</title>
-  <meta name="description" content="Browse browser game ports by genre. Merged from two awesome lists, with playable builds marked.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2' y='2' width='12' height='12' fill='%23d9a441'/%3E%3C/svg%3E">
+  <meta name="description" content="A cartridge rack of browser game ports, sorted by genre. Merged from two awesome lists, with playable builds marked.">
+  <meta name="theme-color" content="#121416">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M2 1h9l3 3v11H2z' fill='%23ff6b1a'/%3E%3Crect x='4' y='3' width='7' height='6' fill='%23ece7da'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <canvas id="scene" aria-hidden="true" hidden></canvas>
-
-  <div class="shell">
-    <header class="topbar">
-      <a class="brand" href="#/">
-        <span class="brand-mark" aria-hidden="true">UC</span>
-        <span class="brand-text">Ultimate Catalog<small>web game ports</small></span>
+  <div class="chassis">
+    <header class="bar plate">
+      <a class="brand" href="#/" data-reset>
+        <span class="brand-mark" aria-hidden="true"><i></i></span>
+        <span class="brand-text">Ultimate Catalog<small>Web game ports · field rack</small></span>
       </a>
-      <label class="search">
-        <span class="search-label mono">Search</span>
-        <input id="search" type="search" placeholder="Title, e.g. Quake" autocomplete="off" aria-label="Search games">
+
+      <label class="search well">
+        <span class="stencil">Search</span>
+        <input id="search" type="search" placeholder="Title, e.g. Quake" autocomplete="off" spellcheck="false" aria-label="Search games" aria-controls="list">
+        <kbd aria-hidden="true">/</kbd>
       </label>
-      <nav class="nav" aria-label="Main">
-        <a href="#/">Home</a>
-        <a href="#/catalog">All games</a>
-        <a href="https://github.com/Carter54git/Ultimate-Catalog-Of-Web-Game-Ports" target="_blank" rel="noopener noreferrer">Source list ↗</a>
-      </nav>
+
+      <div class="controls">
+        <button class="rocker" id="play-only" type="button" role="switch" aria-checked="false" title="Only games with a browser build (P)">
+          <span class="rocker-track" aria-hidden="true"><span class="rocker-cap"></span></span>
+          <span class="stencil">Playable <br>only</span>
+        </button>
+        <button class="key key-wide" id="random" type="button" title="Load a random cartridge (R)">
+          <span class="key-glyph" aria-hidden="true">⟳</span> Random
+        </button>
+        <div class="lcd" aria-live="polite">
+          <output id="readout">---</output>
+          <span class="stencil" id="readout-label">loaded</span>
+        </div>
+      </div>
     </header>
 
-    <div class="layout">
-      <aside class="rail" id="rail" aria-label="Genres"></aside>
-      <main id="app" tabindex="-1">
-        <p class="empty">Loading catalog…</p>
-      </main>
-    </div>
+    <nav class="bank plate" id="bank" aria-label="Genres"></nav>
 
-    <footer class="footer mono">
-      Merged from <a href="https://github.com/Carter54git/Ultimate-Catalog-Of-Web-Game-Ports" target="_blank" rel="noopener noreferrer">Carter54git's Ultimate Catalog</a> and <a href="https://github.com/bitburner/Awesome-Browser-Game-Ports" target="_blank" rel="noopener noreferrer">bitburner's Awesome Browser Game Ports</a>. Links go to third-party projects. Many ports need your own game files.
+    <section class="rack plate" aria-label="Games">
+      <div class="rack-head">
+        <span class="stencil" id="rack-title">All genres</span>
+        <span class="stencil dim" id="rack-hint">↑ ↓ to browse · ↵ to play</span>
+      </div>
+      <ol class="list" id="list" aria-label="Game list"></ol>
+    </section>
+
+    <aside class="deck plate" id="deck" aria-label="Selected game">
+      <button class="key deck-close" id="deck-close" type="button">◂ Back to rack</button>
+      <div class="bay well">
+        <canvas id="cart" aria-hidden="true"></canvas>
+        <span class="bay-corner tl" aria-hidden="true"></span>
+        <span class="bay-corner tr" aria-hidden="true"></span>
+        <span class="bay-corner bl" aria-hidden="true"></span>
+        <span class="bay-corner br" aria-hidden="true"></span>
+        <span class="bay-label stencil" aria-hidden="true">Bay 01 · drag to inspect</span>
+        <span class="bay-led" id="bay-led" aria-hidden="true"></span>
+      </div>
+      <div class="sheet" id="sheet"></div>
+    </aside>
+
+    <footer class="foot">
+      <p class="keys" aria-label="Keyboard shortcuts">
+        <span><kbd>/</kbd> search</span>
+        <span><kbd>↑</kbd><kbd>↓</kbd> browse</span>
+        <span><kbd>↵</kbd> play</span>
+        <span><kbd>[</kbd><kbd>]</kbd> genre</span>
+        <span><kbd>R</kbd> random</span>
+        <span><kbd>P</kbd> playable</span>
+      </p>
+      <p class="credits">
+        Merged from <a href="https://github.com/Carter54git/Ultimate-Catalog-Of-Web-Game-Ports" target="_blank" rel="noopener noreferrer">Carter54git's Ultimate Catalog</a>
+        and <a href="https://github.com/bitburner/Awesome-Browser-Game-Ports" target="_blank" rel="noopener noreferrer">bitburner's Awesome Browser Game Ports</a>.
+        Links go to third-party sites.
+      </p>
     </footer>
   </div>
 

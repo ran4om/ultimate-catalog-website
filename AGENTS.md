@@ -11,8 +11,11 @@ Duplicates are merged into one entry with every known port listed.
   writes `data/games.json`, `docs/data/games.json` and `README.md`. Has no
   dependencies; run with `node scripts/build.mjs`. Genre lists (`GENRES`,
   `ALIASES`, `SPECIAL`) live at the top of the file.
-- `docs/` – static website (hash-routed, no build step): `index.html`,
-  `styles.css`, `app.js` (router and pages) and `scene.js` (Three.js backdrop).
+- `docs/` – static website, no build step. One screen: genre bank, game rack
+  and a deck with a 3D cartridge. `app.js` holds state (kept in the hash, e.g.
+  `#/?g=shooters&q=doom&play=1&id=doom`), rendering and keyboard shortcuts;
+  `cart.js` is the Three.js cartridge and its label art (flat 2D fallback
+  without WebGL); `styles.css` is the hardware look.
 - `docs/vendor/three/` – vendored Three.js 0.186.1 (`three.module.js`,
   `three.core.js`, LICENSE). Don't edit.
 - `data/games.json` – generated data, same content as `docs/data/games.json`.
@@ -29,5 +32,5 @@ Duplicates are merged into one entry with every known port listed.
   Change the generator, then rebuild; don't hand-edit them.
 - Genre fixes go in the lists in `scripts/build.mjs`. Run the build afterwards
   and spot-check the affected titles.
-- The site respects `prefers-reduced-motion`: the scene freezes time and CSS
-  animations are disabled. Keep new motion behind the same check.
+- The site respects `prefers-reduced-motion`: the cartridge swaps instantly
+  without sway and CSS transitions are cut. Keep new motion behind the same check.
