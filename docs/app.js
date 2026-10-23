@@ -1,12 +1,15 @@
-// Router and page renderers for the catalog. Everything is hash-routed, so the site
-// works from any static host: #/ home, #/catalog, #/category/:id, #/game/:id.
+// Router and pages. Everything is hash-routed, so the site works from any static host:
+//   #/                       home: sector keypad, featured playable titles
+//   #/catalog?cat&q&play     catalog with filters; the filters live in the URL
+//   #/game/:id               one game and its ports
 import { createScene } from "./scene.js";
 
 const LETTERS = ["#", ..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"];
-const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const collator = new Intl.Collator("en", { sensitivity: "base", numeric: true });
-const app = document.getElementById("app");
-const labelBox = document.getElementById("orb-labels");
+const $ = (sel) => document.querySelector(sel);
+const app = $("#app");
+const rail = $("#rail");
+const search = $("#search");
 
 let cats = [];
 let catById = new Map();
@@ -14,166 +17,151 @@ let games = [];
 let gameById = new Map();
 let stats = { total: 0, playable: 0, withSource: 0 };
 let scene;
+let lastPath = null;
 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 const safeUrl = (u) => (/^https?:\/\//.test(u || "") ? esc(u) : "#");
 const letterKey = (l) => (l === "#" ? "hash" : l);
+const pad = (n) => String(n).padStart(2, "0");
 
-function badges(g) {
-  return [
-    g.playable ? `<span class="badge play">▶ Play</span>` : `<span class="badge">🌐 Info</span>`,
-    g.hasSource ? `<span class="badge src">📦 Source</span>` : "",
-  ].join("");
+function tags(g) {
+  return `<span class="tags">${g.playable ? `<span class="tag ok">Playable</span>` : `<span class="tag">Info only</span>`}${
+    g.hasSource ? `<span class="tag src">Source</span>` : ""
+  }</span>`;
 }
 
-function gameCard(g) {
+function unitCard(g) {
   const c = catById.get(g.category);
-  return `<a class="card tilt reveal" href="#/game/${esc(g.id)}" style="--accent:${c.color}">
-    <span class="card-glare" aria-hidden="true"></span>
-    <span class="card-top"><span class="card-cat">${esc(c.name)}</span>${g.featured ? `<span class="star" title="Featured">★</span>` : ""}</span>
-    <span class="card-title">${esc(g.title)}</span>
-    <span class="card-badges">${badges(g)}</span>
+  return `<a class="unit" href="#/game/${esc(g.id)}" style="--accent:${c.color}">
+    <span class="unit-head">
+      <span class="led" aria-hidden="true"></span>
+      <span class="unit-cat">${esc(c.name)}</span>
+      <span class="unit-no">${pad(g.no)}</span>
+    </span>
+    <span class="unit-title">${esc(g.title)}</span>
+    ${tags(g)}
   </a>`;
 }
 
-function observeReveals(root) {
-  for (const el of root.querySelectorAll(".reveal:not(.in)")) revealObserver.observe(el);
-}
-
-const revealObserver = new IntersectionObserver(
-  (entries) => {
-    for (const e of entries) {
-      if (!e.isIntersecting) continue;
-      e.target.classList.add("in");
-      revealObserver.unobserve(e.target);
-    }
-  },
-  { rootMargin: "0px 0px -6% 0px" },
-);
-
-function mountOrbLabels() {
-  labelBox.innerHTML = cats.map((c) => `<span class="orb-label" data-id="${esc(c.id)}">${esc(c.name)}</span>`).join("");
-  const labels = new Map([...labelBox.querySelectorAll(".orb-label")].map((el) => [el.dataset.id, el]));
-  scene.setLabels(labels);
-  scene.setActive(true);
+function drawRail(activeCat) {
+  rail.innerHTML = `
+    <h2 class="rail-title">Sectors</h2>
+    <ol class="sectors">
+      <li><a class="sector ${activeCat ? "" : "on"}" href="#/catalog">
+        <span class="led ${activeCat ? "off" : ""}" aria-hidden="true"></span>
+        <span class="sector-no">00</span>
+        <span class="sector-name">All games</span>
+        <span class="sector-count">${games.length}</span>
+      </a></li>
+      ${cats
+        .map(
+          (c, i) => `<li><a class="sector ${activeCat === c.id ? "on" : ""}" href="#/catalog?cat=${esc(c.id)}" style="--accent:${c.color}">
+            <span class="led ${activeCat === c.id ? "" : "off"}" aria-hidden="true"></span>
+            <span class="sector-no">${pad(i + 1)}</span>
+            <span class="sector-name">${esc(c.name)}</span>
+            <span class="sector-count">${c.count}</span>
+          </a></li>`,
+        )
+        .join("")}
+    </ol>`;
 }
 
 function renderHome() {
-  const featured = games.filter((g) => g.featured && g.playable).slice(0, 8);
-  const picks = featured.length ? featured : games.filter((g) => g.playable).slice(0, 8);
+  const picks = games.filter((g) => g.featured && g.playable).slice(0, 8);
+  const featured = picks.length ? picks : games.filter((g) => g.playable).slice(0, 8);
   const random = games[Math.floor(Math.random() * games.length)];
 
   app.innerHTML = `
-    <section class="hero">
-      <p class="eyebrow reveal">Ultimate Catalog · Web game ports</p>
-      <h1 class="hero-title reveal">
-        <span>Play the classics</span>
-        <span class="gradient-text">in a browser tab</span>
-      </h1>
-      <p class="lede reveal">${stats.total} games, merged from two awesome lists and sorted by genre. ${stats.playable} run in the browser right now, and ${stats.withSource} ship with source code.</p>
-      <div class="hero-cta reveal">
-        <a class="btn primary" href="#/catalog">Browse the catalog</a>
-        <a class="btn" href="#/game/${esc(random.id)}">Surprise me</a>
+    <section class="panel">
+      <div class="panel-head mono"><span class="hazard" aria-hidden="true"></span>Index online · ${stats.total} entries</div>
+      <h1>Browser ports, sorted by genre.</h1>
+      <p class="lede">Two awesome lists, merged and de-duplicated. Pick a sector to browse it, or search from the bar above. Titles marked <strong>Playable</strong> open in your browser.</p>
+      <dl class="readouts">
+        <div><dt>Entries</dt><dd>${stats.total}</dd></div>
+        <div><dt>Playable</dt><dd>${stats.playable}</dd></div>
+        <div><dt>With source</dt><dd>${stats.withSource}</dd></div>
+        <div><dt>Sectors</dt><dd>${cats.length}</dd></div>
+      </dl>
+      <div class="cta">
+        <a class="btn primary" href="#/catalog?play=1">Show playable only</a>
+        <a class="btn" href="#/game/${esc(random.id)}">Random pick</a>
       </div>
     </section>
 
-    <section class="section">
-      <h2 class="section-title reveal">Explore by genre</h2>
-      <p class="muted reveal">Hover an orb or the ring to pause it. Click through to a genre.</p>
-      <div class="ring-stage">
-        <div class="ring">
-          ${cats.map((c, i) => `
-            <div class="ring-item" style="--i:${i}">
-              <a class="ring-card tilt" href="#/category/${esc(c.id)}" style="--accent:${c.color}">
-                <span class="ring-count">${c.count}</span>
-                <span class="ring-name">${esc(c.name)}</span>
-              </a>
-            </div>`).join("")}
-        </div>
+    <section class="block">
+      <header class="block-head"><h2>Sectors</h2><span class="mono">Select to browse</span></header>
+      <div class="keypad">
+        ${cats
+          .map(
+            (c, i) => `<a class="key" href="#/catalog?cat=${esc(c.id)}" style="--accent:${c.color}">
+              <span class="key-top"><span class="led" aria-hidden="true"></span><span class="mono">${pad(i + 1)}</span></span>
+              <span class="key-name">${esc(c.name)}</span>
+              <span class="key-count">${c.count}</span>
+            </a>`,
+          )
+          .join("")}
       </div>
     </section>
 
-    <section class="section">
-      <h2 class="section-title reveal">Featured picks</h2>
-      <div class="grid">${picks.map(gameCard).join("")}</div>
+    <section class="block">
+      <header class="block-head"><h2>Featured, playable now</h2><a href="#/catalog?play=1">All playable →</a></header>
+      <div class="grid">${featured.map(unitCard).join("")}</div>
     </section>`;
-
-  mountOrbLabels();
-  observeReveals(app);
 }
 
-function renderCatalog(fixedId) {
-  const fixed = fixedId ? catById.get(fixedId) : null;
-  const filter = { q: "", cat: fixedId || "" };
+function renderCatalog(params) {
+  const cat = catById.get(params.get("cat") || "") ?? null;
+  const q = (params.get("q") || "").trim().toLowerCase();
+  const playOnly = params.get("play") === "1";
+
+  const list = games.filter(
+    (g) => (!cat || g.category === cat.id) && (!playOnly || g.playable) && (!q || g.search.includes(q)),
+  );
+  const groups = new Map(LETTERS.map((l) => [l, []]));
+  for (const g of list) groups.get(groups.has(g.letter) ? g.letter : "#").push(g);
+  const filtered = Boolean(cat || q || playOnly);
 
   app.innerHTML = `
-    <section class="page-head">
-      <p class="eyebrow reveal">${fixed ? "Genre" : "Catalog"}</p>
-      <h1 class="gradient-text reveal">${esc(fixed ? fixed.name : "Every game")}</h1>
-      <p class="lede reveal">${esc(fixed ? fixed.blurb : `${games.length} games. Search, filter, or jump by letter.`)}</p>
-      <div class="controls reveal">
-        <input id="q" type="search" placeholder="Search titles…" autocomplete="off" aria-label="Search games">
-        ${fixed ? "" : `<select id="cat" aria-label="Genre">
-          <option value="">All genres</option>
-          ${cats.map((c) => `<option value="${esc(c.id)}">${esc(c.name)} (${c.count})</option>`).join("")}
-        </select>`}
+    <section class="panel">
+      <div class="crumbs"><a href="#/catalog">All games</a>${cat ? ` / <span>${esc(cat.name)}</span>` : ""}</div>
+      <div class="panel-head">
+        <span class="led" style="--accent:${cat ? cat.color : "var(--amber)"}" aria-hidden="true"></span>
+        <span class="mono">${cat ? `Sector ${pad(cats.indexOf(cat) + 1)}` : "Full index"}</span>
       </div>
-      <nav class="letters" id="letters" aria-label="Jump to letter"></nav>
+      <h1>${esc(cat ? cat.name : "All games")}</h1>
+      <p class="lede">${esc(cat ? cat.blurb : "Every merged entry. Filters are kept in the address bar, so links and Back both work.")}</p>
+      <div class="filters">
+        <label class="toggle">
+          <input type="checkbox" id="play-toggle" ${playOnly ? "checked" : ""}>
+          <span class="switch" aria-hidden="true"></span>
+          <span>Playable only</span>
+        </label>
+        <span class="mono count">${list.length} of ${games.length} shown</span>
+        ${filtered ? `<a class="clear" href="#/catalog">Clear filters</a>` : ""}
+      </div>
+      <nav class="letters" aria-label="Jump to letter">
+        ${LETTERS.map((l) => {
+          const n = groups.get(l).length;
+          return `<button type="button" class="letter" data-jump="${letterKey(l)}" ${n ? "" : "disabled"} aria-label="Letter ${l}, ${n} games">${l}</button>`;
+        }).join("")}
+      </nav>
     </section>
-    <div id="list"></div>`;
 
-  const list = app.querySelector("#list");
-  const letters = app.querySelector("#letters");
+    <div class="results">
+      ${
+        [...groups]
+          .filter(([, items]) => items.length)
+          .map(
+            ([l, items]) => `<section class="letter-group" id="L${letterKey(l)}">
+              <h2 class="letter-head">${l}<small>${items.length}</small></h2>
+              <div class="grid">${items.map(unitCard).join("")}</div>
+            </section>`,
+          )
+          .join("") || `<p class="empty">No titles match these filters. <a href="#/catalog">Clear filters</a>.</p>`
+      }
+    </div>`;
 
-  function draw() {
-    const rows = games.filter(
-      (g) => (!filter.cat || g.category === filter.cat) && (!filter.q || g.search.includes(filter.q)),
-    );
-    const groups = new Map(LETTERS.map((l) => [l, []]));
-    for (const g of rows) groups.get(groups.has(g.letter) ? g.letter : "#").push(g);
-
-    letters.innerHTML = LETTERS.map((l) => {
-      const n = groups.get(l).length;
-      return `<button type="button" class="letter" data-jump="${letterKey(l)}" ${n ? "" : "disabled"}>${l}</button>`;
-    }).join("");
-
-    list.innerHTML =
-      [...groups]
-        .filter(([, items]) => items.length)
-        .map(
-          ([l, items]) => `
-          <section class="letter-group" id="L${letterKey(l)}">
-            <h2 class="letter-head"><span>${l}</span><small>${items.length}</small></h2>
-            <div class="grid">${items.map(gameCard).join("")}</div>
-          </section>`,
-        )
-        .join("") || `<p class="empty">Nothing matches that search.</p>`;
-    observeReveals(list);
-  }
-
-  app.querySelector("#q").addEventListener("input", (e) => {
-    filter.q = e.target.value.trim().toLowerCase();
-    draw();
-  });
-  app.querySelector("#cat")?.addEventListener("change", (e) => {
-    filter.cat = e.target.value;
-    draw();
-  });
-
-  draw();
-  observeReveals(app);
-}
-
-function portRow(p) {
-  return `<div class="port tilt">
-    <span class="port-label">${esc(p.label)}</span>
-    <span class="port-actions">
-      ${p.play ? `<a class="btn primary" href="${safeUrl(p.play)}" target="_blank" rel="noopener noreferrer">▶ Play</a>` : ""}
-      ${p.source ? `<a class="btn" href="${safeUrl(p.source)}" target="_blank" rel="noopener noreferrer">📦 Source</a>` : ""}
-      ${p.site ? `<a class="btn ghost" href="${safeUrl(p.site)}" target="_blank" rel="noopener noreferrer">🌐 Site</a>` : ""}
-    </span>
-    <span class="port-origin">From ${p.origin === "ultimate" ? "Ultimate Catalog" : "Awesome Browser Game Ports"}</span>
-  </div>`;
+  $("#play-toggle").addEventListener("change", (e) => setParams({ play: e.target.checked ? "1" : null }));
 }
 
 function renderGame(id) {
@@ -183,83 +171,129 @@ function renderGame(id) {
   const related = games.filter((x) => x.category === c.id && x.id !== g.id).slice(0, 6);
 
   app.innerHTML = `
-    <a class="back" href="#/category/${esc(c.id)}">← ${esc(c.name)}</a>
-    <article class="detail reveal" style="--accent:${c.color}">
-      <p class="eyebrow">${esc(c.name)}</p>
-      <h1 class="gradient-text">${esc(g.title)}</h1>
-      <div class="card-badges">${badges(g)}${g.featured ? `<span class="badge">★ Featured</span>` : ""}</div>
-      <div class="ports">${g.ports.map(portRow).join("")}</div>
+    <div class="crumbs"><a href="#/catalog">All games</a> / <a href="#/catalog?cat=${esc(c.id)}">${esc(c.name)}</a></div>
+    <article class="panel spec" style="--accent:${c.color}">
+      <div class="spec-head"><span class="led" aria-hidden="true"></span>${esc(c.name)} · No. ${pad(g.no)}</div>
+      <h1>${esc(g.title)}</h1>
+      ${tags(g)}
+      <h2 class="ports-title">Ports (${g.ports.length})</h2>
+      <ul class="ports">
+        ${g.ports
+          .map(
+            (p) => `<li class="port">
+              <span>
+                <span class="port-label">${esc(p.label)}</span>
+                <span class="port-origin">From ${p.origin === "ultimate" ? "Ultimate Catalog" : "Awesome Browser Game Ports"}</span>
+              </span>
+              <span class="port-actions">
+                ${p.play ? `<a class="btn primary" href="${safeUrl(p.play)}" target="_blank" rel="noopener noreferrer">▶ Play in browser</a>` : ""}
+                ${p.source ? `<a class="btn" href="${safeUrl(p.source)}" target="_blank" rel="noopener noreferrer">Source</a>` : ""}
+                ${p.site ? `<a class="btn ghost" href="${safeUrl(p.site)}" target="_blank" rel="noopener noreferrer">Website</a>` : ""}
+              </span>
+            </li>`,
+          )
+          .join("")}
+      </ul>
+      <p class="note">Links open in a new tab on third-party sites. Ports that need game files will ask you for them.</p>
     </article>
-    <section class="section">
-      <h2 class="section-title reveal">More in ${esc(c.name)}</h2>
-      <div class="grid">${related.map(gameCard).join("")}</div>
-    </section>`;
-  observeReveals(app);
+
+    ${
+      related.length
+        ? `<section class="block">
+            <header class="block-head"><h2>More in ${esc(c.name)}</h2><a href="#/catalog?cat=${esc(c.id)}">Whole sector →</a></header>
+            <div class="grid">${related.map(unitCard).join("")}</div>
+          </section>`
+        : ""
+    }`;
 }
 
 function renderNotFound() {
-  app.innerHTML = `<p class="empty">That page doesn't exist. <a href="#/">Back home</a>.</p>`;
+  app.innerHTML = `<p class="empty">That page doesn't exist. <a href="#/">Back to the index</a>.</p>`;
+}
+
+// Filters are stored in the hash. Typing replaces the entry so Back doesn't step through every keystroke.
+function currentCatalogParams() {
+  const [path, qs = ""] = location.hash.slice(1).split("?");
+  return path.startsWith("/catalog") ? new URLSearchParams(qs) : new URLSearchParams();
+}
+
+function setParams(patch, { replace = false } = {}) {
+  const next = currentCatalogParams();
+  for (const [k, v] of Object.entries(patch)) {
+    if (v === null || v === "") next.delete(k);
+    else next.set(k, v);
+  }
+  const qs = next.toString();
+  const url = `#/catalog${qs ? `?${qs}` : ""}`;
+  if (replace) {
+    history.replaceState(null, "", url);
+    route();
+  } else {
+    location.hash = url;
+  }
 }
 
 function route() {
-  scene.setActive(false);
-  scene.setLabels(null);
-  labelBox.innerHTML = "";
-  window.scrollTo(0, 0);
-
-  // "#/game/abc" -> ["", "game", "abc"]
-  const [, page = "", arg = ""] = location.hash.slice(1).split("/");
+  const [pathPart, qs = ""] = location.hash.slice(1).split("?");
+  const params = new URLSearchParams(qs);
+  const [, page = "", arg = ""] = pathPart.split("/");
   const id = decodeURIComponent(arg);
 
+  if (page === "category") {
+    // Old genre links redirect to the catalog filter.
+    location.replace(`#/catalog?cat=${encodeURIComponent(id)}`);
+    return;
+  }
+
+  if (pathPart !== lastPath) {
+    window.scrollTo(0, 0);
+    lastPath = pathPart;
+  }
+
+  scene.show(page === "");
+
   if (page === "") {
+    drawRail(null);
     renderHome();
     document.title = "Ultimate Catalog · Web Game Ports";
   } else if (page === "catalog") {
-    renderCatalog("");
-    document.title = "Catalog · Ultimate Catalog";
-  } else if (page === "category" && catById.has(id)) {
-    renderCatalog(id);
-    document.title = `${catById.get(id).name} · Ultimate Catalog`;
+    const cat = catById.get(params.get("cat") || "");
+    drawRail(cat?.id ?? null);
+    renderCatalog(params);
+    document.title = `${cat ? `${cat.name} · ` : ""}Catalog · Ultimate Catalog`;
   } else if (page === "game") {
+    const g = gameById.get(id);
+    drawRail(g?.category ?? null);
     renderGame(id);
-    document.title = `${gameById.get(id)?.title ?? "Game"} · Ultimate Catalog`;
+    document.title = `${g ? g.title : "Not found"} · Ultimate Catalog`;
   } else {
+    drawRail(null);
     renderNotFound();
+    document.title = "Not found · Ultimate Catalog";
   }
+
+  if (document.activeElement !== search) search.value = page === "catalog" ? params.get("q") || "" : "";
 }
 
-// One delegated click handler: letter jumps, and orb clicks while the home scene is up.
-app.parentElement.addEventListener("click", (e) => {
-  const jump = e.target.closest("[data-jump]");
-  if (jump) {
-    document.getElementById(`L${jump.dataset.jump}`)?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" });
-    return;
+// Search on any page: typing jumps to the catalog with the query applied.
+search.addEventListener("input", (e) => {
+  const q = e.target.value.trim();
+  const onCatalog = location.hash.startsWith("#/catalog");
+  if (!onCatalog) {
+    if (!q) return;
+    history.replaceState(null, "", `#/catalog?q=${encodeURIComponent(q)}`);
+    route();
+  } else {
+    setParams({ q: q || null }, { replace: true });
   }
-  if (e.target.closest("a, button, input, select")) return;
-  const orb = scene.hoveredId();
-  if (orb) location.hash = `#/category/${orb}`;
 });
 
-// Tilt and glare: pointer position becomes CSS variables on the hovered card.
-if (!reduceMotion) {
-  document.addEventListener("pointermove", (e) => {
-    const card = e.target.closest?.(".tilt");
-    if (!card) return;
-    const r = card.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width;
-    const y = (e.clientY - r.top) / r.height;
-    card.style.setProperty("--rx", `${((0.5 - y) * 12).toFixed(2)}deg`);
-    card.style.setProperty("--ry", `${((x - 0.5) * 12).toFixed(2)}deg`);
-    card.style.setProperty("--mx", `${(x * 100).toFixed(1)}%`);
-    card.style.setProperty("--my", `${(y * 100).toFixed(1)}%`);
-  });
-  document.addEventListener("pointerout", (e) => {
-    const card = e.target.closest?.(".tilt");
-    if (!card || card.contains(e.relatedTarget)) return;
-    card.style.removeProperty("--rx");
-    card.style.removeProperty("--ry");
-  });
-}
+// Letter jumps scroll within the page; the topbar offset comes from scroll-margin-top.
+app.addEventListener("click", (e) => {
+  const jump = e.target.closest("[data-jump]");
+  if (!jump) return;
+  document.getElementById(`L${jump.dataset.jump}`)?.scrollIntoView({ block: "start" });
+});
 
 async function boot() {
   const res = await fetch("data/games.json");
@@ -270,7 +304,8 @@ async function boot() {
   catById = new Map(cats.map((c) => [c.id, c]));
   games = data.games
     .map((g) => ({ ...g, search: [g.title, ...g.ports.map((p) => p.label)].join(" ").toLowerCase() }))
-    .sort((a, b) => collator.compare(a.title, b.title));
+    .sort((a, b) => collator.compare(a.title, b.title))
+    .map((g, i) => ({ ...g, no: i + 1 }));
   gameById = new Map(games.map((g) => [g.id, g]));
   stats = {
     total: data.total,
@@ -278,8 +313,7 @@ async function boot() {
     withSource: games.filter((g) => g.hasSource).length,
   };
 
-  scene = createScene(document.getElementById("scene"), cats);
-  window.addEventListener("scroll", () => scene.setScroll(window.scrollY), { passive: true });
+  scene = createScene(document.getElementById("scene"));
   window.addEventListener("hashchange", route);
   route();
 }

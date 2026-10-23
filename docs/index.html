@@ -4,30 +4,39 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Ultimate Catalog · Web Game Ports</title>
-  <meta name="description" content="A browsable, genre-sorted catalog of browser game ports, merged from two awesome lists.">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='3' y='3' width='10' height='10' rx='2' fill='%23a855f7' transform='rotate(45 8 8)'/%3E%3C/svg%3E">
+  <meta name="description" content="Browse browser game ports by genre. Merged from two awesome lists, with playable builds marked.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='2' y='2' width='12' height='12' fill='%23d9a441'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <canvas id="scene" aria-hidden="true"></canvas>
-  <div id="orb-labels" aria-hidden="true"></div>
+  <canvas id="scene" aria-hidden="true" hidden></canvas>
 
   <div class="shell">
     <header class="topbar">
-      <a class="logo" href="#/"><span class="logo-mark" aria-hidden="true"></span>Ultimate Catalog</a>
+      <a class="brand" href="#/">
+        <span class="brand-mark" aria-hidden="true">UC</span>
+        <span class="brand-text">Ultimate Catalog<small>web game ports</small></span>
+      </a>
+      <label class="search">
+        <span class="search-label mono">Search</span>
+        <input id="search" type="search" placeholder="Title, e.g. Quake" autocomplete="off" aria-label="Search games">
+      </label>
       <nav class="nav" aria-label="Main">
         <a href="#/">Home</a>
-        <a href="#/catalog">Catalog</a>
-        <a href="https://github.com/Carter54git/Ultimate-Catalog-Of-Web-Game-Ports" target="_blank" rel="noopener noreferrer">Original list ↗</a>
+        <a href="#/catalog">All games</a>
+        <a href="https://github.com/Carter54git/Ultimate-Catalog-Of-Web-Game-Ports" target="_blank" rel="noopener noreferrer">Source list ↗</a>
       </nav>
     </header>
 
-    <main id="app">
-      <p class="empty">Loading the arcade…</p>
-    </main>
+    <div class="layout">
+      <aside class="rail" id="rail" aria-label="Genres"></aside>
+      <main id="app" tabindex="-1">
+        <p class="empty">Loading catalog…</p>
+      </main>
+    </div>
 
-    <footer class="footer">
-      <p>Merged from <a href="https://github.com/Carter54git/Ultimate-Catalog-Of-Web-Game-Ports" target="_blank" rel="noopener noreferrer">Carter54git's Ultimate Catalog</a> and <a href="https://github.com/bitburner/Awesome-Browser-Game-Ports" target="_blank" rel="noopener noreferrer">bitburner's Awesome Browser Game Ports</a>. Links point to third-party projects; many ports need your own game files.</p>
+    <footer class="footer mono">
+      Merged from <a href="https://github.com/Carter54git/Ultimate-Catalog-Of-Web-Game-Ports" target="_blank" rel="noopener noreferrer">Carter54git's Ultimate Catalog</a> and <a href="https://github.com/bitburner/Awesome-Browser-Game-Ports" target="_blank" rel="noopener noreferrer">bitburner's Awesome Browser Game Ports</a>. Links go to third-party projects. Many ports need your own game files.
     </footer>
   </div>
 
